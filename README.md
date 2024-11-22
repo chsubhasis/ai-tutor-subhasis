@@ -1,29 +1,29 @@
-# Starting Point for the Final Project of the "From Beginner to Advanced LLM Developer" course
-
 ## Overview
 
 This repository contains the code of the final "Part 4; Building Your Own advanced LLM + RAG Project to receive certification" lesson of the "From Beginner to Advanced LLM Developer" course.
 
-Congrats, you are at the last step of the course! In this final project you'll have the possibility to practice with all the techniques that you learned and earn your certification.
-
-If you want, you can use this repository as starting point for your final project. The code here is the same as in the "Building and Deploying a Gradio UI on Hugging Face Spaces" lesson, so you should be already familiar with it. If you want to use it for your project, fork this repository here on GitHub. By doing so, you'll create a copy of this repository in your GitHub account that you can modify as you want.
+## Notes
+- AI_Tutor_FT.ipynb is only to fine tune the model and save in Hugging Face space. This will not be required to exeute to launch the app. 
+- AI_Tutor_RAG.ipynb is for RAG implementation. This is modularized and moved to app.py.
+- This project used below:
+    - finetuned LLM in the app. 
+    - Data collection and curation process leverages structured JSON
+    - metadata filtering
+    - RAG evaluation
+    - Prompt cahcing
+- For RAG evaluation, Hit Rate: 0.50, Mean Reciprocal Rank (MRR): 0.50. Used simple eval set.
+- During execution, app will ask to enter HuggingFace access token. So, be ready with that.
 
 ## Setup
 
-1. Create a `.env` file and add there your OpenAI API key. Its content should be something like:
-
-```bash
-OPENAI_API_KEY="sk-..."
-```
-
-2. Create a local virtual environment, for example using the `venv` module. Then, activate it.
+1. Create a local virtual environment, for example using the `venv` module. Then, activate it.
 
 ```bash
 python -m venv venv
 source venv/bin/activate
 ```
 
-3. Install the dependencies.
+3. Install the dependencies. (Microsoft Visual C++ 14.0 or greater is required. Get it with "Microsoft C++ Build Tools": https://visualstudio.microsoft.com/visual-cpp-build-tools/. Otherwise langchain_chroma installtion will fail.)
 
 ```bash
 pip install -r requirements.txt
@@ -34,3 +34,5 @@ pip install -r requirements.txt
 ```bash
 python app.py
 ```
+
+![alt text](rag_response.PNG)
