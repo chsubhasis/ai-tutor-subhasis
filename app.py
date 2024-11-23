@@ -13,6 +13,7 @@ from langchain_chroma import Chroma
 from langchain.chains import RetrievalQA
 import numpy as np
 import gradio
+import sqlite3
 
 hfapi_key = getpass("Enter you HuggingFace access token:")
 os.environ["HF_TOKEN"] = hfapi_key
@@ -51,7 +52,7 @@ def getDocSplitter():
         chunk_size = 512,
         chunk_overlap = 128
     )
-    splits = text_splitter.split_documents(get_documents)
+    splits = text_splitter.split_documents(get_documents())
     print("Split length ", len(splits))
     print("Page content ", splits[0].page_content)
     return splits
