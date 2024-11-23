@@ -3,7 +3,7 @@ from getpass import getpass
 import csv
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain.schema import Document
+#from langchain.schema import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 import torch
 from langchain_huggingface import HuggingFaceEndpoint
@@ -25,6 +25,7 @@ persist_directory = 'docs/chroma/'
 
 ####################################
 def load_file_as_JSON():
+    print("$$$$$ ENTER INTO load_file_as_JSON $$$$$")
     rows = []
     with open("mini-llama-articles.csv", mode="r", encoding="utf-8") as file:
         csv_reader = csv.reader(file)
@@ -33,9 +34,12 @@ def load_file_as_JSON():
                 continue
                 # Skip header row
             rows.append(row)
+
+    print("@@@@@@ EXIT FROM load_file_as_JSON @@@@@")
     return rows
 ####################################
 def get_documents():
+    print("$$$$$ ENTER INTO get_documents $$$$$")
     documents = [
         Document(
             page_content=row[1], metadata={"title": row[0], "url": row[2], "source_name": row[3]}
@@ -45,9 +49,11 @@ def get_documents():
     print("documents lenght is ", len(documents))
     print("first entry from documents ", documents[0])
     print("document metadata ", documents[0].metadata)
+    print("@@@@@@ EXIT FROM get_documents @@@@@")
     return documents
 ####################################
 def getDocSplitter():
+    print("$$$$$ ENTER INTO getDocSplitter $$$$$")
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size = 512,
         chunk_overlap = 128
@@ -55,9 +61,11 @@ def getDocSplitter():
     splits = text_splitter.split_documents(get_documents())
     print("Split length ", len(splits))
     print("Page content ", splits[0].page_content)
+    print("@@@@@@ EXIT FROM getDocSplitter @@@@@")
     return splits
 ####################################
 def getEmbeddings():
+    print("$$$$$ ENTER INTO getEmbeddings $$$$$")
     modelPath="mixedbread-ai/mxbai-embed-large-v1"
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -74,9 +82,11 @@ def getEmbeddings():
     )
     
     print("Embedding ", embedding)
+    print("@@@@@@ EXIT FROM getEmbeddings @@@@@")
     return embedding
 ####################################
 def getLLM():
+    print("$$$$$ ENTER INTO getLLM $$$$$")
     llm = HuggingFaceEndpoint(
         repo_id="HuggingFaceH4/zephyr-7b-beta",
         #repo_id="chsubhasis/ai-tutor-towardsai",
@@ -88,14 +98,32 @@ def getLLM():
     )
     print("llm ", llm)
     print("Who is the CEO of Apple? ", llm.invoke("Who is the CEO of Apple?")) #test
+    print("@@@@@@ EXIT FROM getLLM @@@@@")
     return llm
 ####################################
+def is_chroma_db_present(directory: str):
+    """
+    Check if the directory exists and contains any files.
+    """
+    return os.path.exists(directory) and len(os.listdir(directory)) > 0
+####################################
 def getRetiriver():
-    vectordb = Chroma.from_documents(
-        documents=getDocSplitter(), # splits we created earlier
-        embedding=getEmbeddings(),
-        persist_directory=persist_directory, # save the directory
-    )
+    print("$$$$$ ENTER INTO getRetiriver $$$$$")
+    if is_chroma_db_present(persist_directory):
+        print(f"Chroma vector DB found in '{persist_directory}' and will be loaded.")
+        # Load vector store from the local directory
+        #vectordb = Chroma(persist_directory=persist_directory)
+        vectordb = Chroma(
+            persist_directory=persist_directory, 
+            embedding_function=getEmbeddings(),
+            collection_name="ai_tutor")
+    else:
+        vectordb = Chroma.from_documents(
+            collection_name="ai_tutor",
+            documents=getDocSplitter(), # splits we created earlier
+            embedding=getEmbeddings(),
+            persist_directory=persist_directory, # save the directory
+        )
     print("vectordb collection count ", vectordb._collection.count())
     
     docs = vectordb.search("What is Artificial Intelligence", search_type="mmr", k=5)
@@ -108,9 +136,11 @@ def getRetiriver():
     
     retriever = vectordb.as_retriever(search_type="mmr", search_kwargs={"k": 3, "fetch_k":5, "filter": metadata_filter})
     print("retriever ", retriever)
+    print("@@@@@@ EXIT FROM getRetiriver @@@@@")
     return retriever
 ####################################
 def get_rag_response(query):
+  print("$$$$$ ENTER INTO get_rag_response $$$$$")  
   qa_chain = RetrievalQA.from_chain_type(
     llm=getLLM(),
     chain_type="stuff",
@@ -130,9 +160,11 @@ def get_rag_response(query):
   
   result = qa_chain({"query": query})
   print("Result ",result)
+  print("@@@@@@ EXIT FROM get_rag_response @@@@@")
   return result["result"]
 ####################################
 def evaluate_rag(qa, dataset):
+    print("$$$$$ ENTER INTO evaluate_rag $$$$$")
     hits = 0
     reciprocal_ranks = []
 
@@ -155,9 +187,11 @@ def evaluate_rag(qa, dataset):
     hit_rate = hits / len(dataset)
     mrr = np.mean(reciprocal_ranks)
 
+    print("@@@@@@ EXIT FROM evaluate_rag @@@@@")
     return hit_rate, mrr
 ####################################
 def launch_ui():
+    print("$$$$$ ENTER INTO launch_ui $$$$$")
     # Input from user
     in_question = gradio.Textbox(lines=10, placeholder=None, value="query", label='Enter your query')
 
