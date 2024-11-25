@@ -14,6 +14,8 @@ from langchain.chains import RetrievalQA
 import numpy as np
 import gradio
 import sqlite3
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from langchain.llms import HuggingFacePipeline
 
 hfapi_key = getpass("Enter you HuggingFace access token:")
 os.environ["HF_TOKEN"] = hfapi_key
@@ -87,17 +89,24 @@ def getEmbeddings():
 ####################################
 def getLLM():
     print("$$$$$ ENTER INTO getLLM $$$$$")
-    llm = HuggingFaceEndpoint(
-        repo_id="HuggingFaceH4/zephyr-7b-beta",
-        #repo_id="chsubhasis/ai-tutor-towardsai",
-        task="text-generation",
-        max_new_tokens = 512,   
-        top_k = 10,
-        temperature = 0.1,
-        repetition_penalty = 1.03,
+    # Load the fine-tuned model and tokenizer from Hugging Face
+    # Refer AI_Tutor_FT for fine tuned model and the tokenizer
+    model_name = "chsubhasis/ai-tutor-towardsai"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name)
+    
+    # Create a text generation pipeline
+    text_generator = pipeline(
+        "text-generation", 
+        model=model, 
+        tokenizer=tokenizer,
+        max_new_tokens=200
     )
-    print("llm ", llm)
-    print("Who is the CEO of Apple? ", llm.invoke("Who is the CEO of Apple?")) #test
+    
+    # Convert to LangChain LLM
+    llm = HuggingFacePipeline(pipeline=text_generator)
+
+    print(llm.invoke("What is Artificial Intelligence?")) #test
     print("@@@@@@ EXIT FROM getLLM @@@@@")
     return llm
 ####################################
