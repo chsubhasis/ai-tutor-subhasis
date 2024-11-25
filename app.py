@@ -6,14 +6,12 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 #from langchain.schema import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 import torch
-from langchain_huggingface import HuggingFaceEndpoint
 from langchain_community.cache import InMemoryCache
 from langchain.globals import set_llm_cache
 from langchain_chroma import Chroma
 from langchain.chains import RetrievalQA
 import numpy as np
 import gradio
-import sqlite3
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from langchain.llms import HuggingFacePipeline
 
