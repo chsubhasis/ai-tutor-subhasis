@@ -3,7 +3,6 @@ from getpass import getpass
 import csv
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-#from langchain.schema import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 import torch
 from langchain_community.cache import InMemoryCache
@@ -25,7 +24,7 @@ persist_directory = 'docs/chroma/'
 
 ####################################
 def load_file_as_JSON():
-    print("$$$$$ ENTER INTO load_file_as_JSON $$$$$")
+    #print("$$$$$ ENTER INTO load_file_as_JSON $$$$$")
     rows = []
     with open("mini-llama-articles.csv", mode="r", encoding="utf-8") as file:
         csv_reader = csv.reader(file)
@@ -35,37 +34,37 @@ def load_file_as_JSON():
                 # Skip header row
             rows.append(row)
 
-    print("@@@@@@ EXIT FROM load_file_as_JSON @@@@@")
+    #print("@@@@@@ EXIT FROM load_file_as_JSON @@@@@")
     return rows
 ####################################
 def get_documents():
-    print("$$$$$ ENTER INTO get_documents $$$$$")
+    #print("$$$$$ ENTER INTO get_documents $$$$$")
     documents = [
         Document(
             page_content=row[1], metadata={"title": row[0], "url": row[2], "source_name": row[3]}
         )
         for row in load_file_as_JSON()
     ]
-    print("documents lenght is ", len(documents))
-    print("first entry from documents ", documents[0])
-    print("document metadata ", documents[0].metadata)
-    print("@@@@@@ EXIT FROM get_documents @@@@@")
+    #print("documents lenght is ", len(documents))
+    #print("first entry from documents ", documents[0])
+    #print("document metadata ", documents[0].metadata)
+    #print("@@@@@@ EXIT FROM get_documents @@@@@")
     return documents
 ####################################
 def getDocSplitter():
-    print("$$$$$ ENTER INTO getDocSplitter $$$$$")
+    #print("$$$$$ ENTER INTO getDocSplitter $$$$$")
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size = 512,
         chunk_overlap = 128
     )
     splits = text_splitter.split_documents(get_documents())
-    print("Split length ", len(splits))
-    print("Page content ", splits[0].page_content)
-    print("@@@@@@ EXIT FROM getDocSplitter @@@@@")
+    #print("Split length ", len(splits))
+    #print("Page content ", splits[0].page_content)
+    #print("@@@@@@ EXIT FROM getDocSplitter @@@@@")
     return splits
 ####################################
 def getEmbeddings():
-    print("$$$$$ ENTER INTO getEmbeddings $$$$$")
+    #print("$$$$$ ENTER INTO getEmbeddings $$$$$")
     modelPath="mixedbread-ai/mxbai-embed-large-v1"
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -81,12 +80,12 @@ def getEmbeddings():
         encode_kwargs=encode_kwargs # Pass the encoding options
     )
     
-    print("Embedding ", embedding)
-    print("@@@@@@ EXIT FROM getEmbeddings @@@@@")
+    #print("Embedding ", embedding)
+    #print("@@@@@@ EXIT FROM getEmbeddings @@@@@")
     return embedding
 ####################################
 def getLLM():
-    print("$$$$$ ENTER INTO getLLM $$$$$")
+    #print("$$$$$ ENTER INTO getLLM $$$$$")
     # Load the fine-tuned model and tokenizer from Hugging Face
     # Refer AI_Tutor_FT for fine tuned model and the tokenizer
     model_name = "chsubhasis/ai-tutor-towardsai"
@@ -104,8 +103,8 @@ def getLLM():
     # Convert to LangChain LLM
     llm = HuggingFacePipeline(pipeline=text_generator)
 
-    print(llm.invoke("What is Artificial Intelligence?")) #test
-    print("@@@@@@ EXIT FROM getLLM @@@@@")
+    #print(llm.invoke("What is Artificial Intelligence?")) #test
+    #print("@@@@@@ EXIT FROM getLLM @@@@@")
     return llm
 ####################################
 def is_chroma_db_present(directory: str):
@@ -115,7 +114,7 @@ def is_chroma_db_present(directory: str):
     return os.path.exists(directory) and len(os.listdir(directory)) > 0
 ####################################
 def getRetiriver():
-    print("$$$$$ ENTER INTO getRetiriver $$$$$")
+    #print("$$$$$ ENTER INTO getRetiriver $$$$$")
     if is_chroma_db_present(persist_directory):
         print(f"Chroma vector DB found in '{persist_directory}' and will be loaded.")
         # Load vector store from the local directory
@@ -131,7 +130,7 @@ def getRetiriver():
             embedding=getEmbeddings(),
             persist_directory=persist_directory, # save the directory
         )
-    print("vectordb collection count ", vectordb._collection.count())
+    #print("vectordb collection count ", vectordb._collection.count())
     
     docs = vectordb.search("What is Artificial Intelligence", search_type="mmr", k=5)
     for i in range(len(docs)):
@@ -142,12 +141,12 @@ def getRetiriver():
     }
     
     retriever = vectordb.as_retriever(search_type="mmr", search_kwargs={"k": 3, "fetch_k":5, "filter": metadata_filter})
-    print("retriever ", retriever)
-    print("@@@@@@ EXIT FROM getRetiriver @@@@@")
+    #print("retriever ", retriever)
+    #print("@@@@@@ EXIT FROM getRetiriver @@@@@")
     return retriever
 ####################################
 def get_rag_response(query):
-  print("$$$$$ ENTER INTO get_rag_response $$$$$")  
+  #print("$$$$$ ENTER INTO get_rag_response $$$$$")  
   qa_chain = RetrievalQA.from_chain_type(
     llm=getLLM(),
     chain_type="stuff",
@@ -166,12 +165,12 @@ def get_rag_response(query):
   print(f"Hit Rate: {hit_rate:.2f}, Mean Reciprocal Rank (MRR): {mrr:.2f}")
   
   result = qa_chain({"query": query})
-  print("Result ",result)
-  print("@@@@@@ EXIT FROM get_rag_response @@@@@")
+  #print("Result ",result)
+  #print("@@@@@@ EXIT FROM get_rag_response @@@@@")
   return result["result"][163:]
 ####################################
 def evaluate_rag(qa, dataset):
-    print("$$$$$ ENTER INTO evaluate_rag $$$$$")
+    #print("$$$$$ ENTER INTO evaluate_rag $$$$$")
     hits = 0
     reciprocal_ranks = []
 
@@ -194,11 +193,11 @@ def evaluate_rag(qa, dataset):
     hit_rate = hits / len(dataset)
     mrr = np.mean(reciprocal_ranks)
 
-    print("@@@@@@ EXIT FROM evaluate_rag @@@@@")
+    #print("@@@@@@ EXIT FROM evaluate_rag @@@@@")
     return hit_rate, mrr
 ####################################
 def launch_ui():
-    print("$$$$$ ENTER INTO launch_ui $$$$$")
+    #print("$$$$$ ENTER INTO launch_ui $$$$$")
     # Input from user
     in_question = gradio.Textbox(lines=10, placeholder=None, value="query", label='Enter your query')
 
