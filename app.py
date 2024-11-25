@@ -98,7 +98,7 @@ def getLLM():
         "text-generation", 
         model=model, 
         tokenizer=tokenizer,
-        max_new_tokens=200
+        max_new_tokens=512
     )
     
     # Convert to LangChain LLM
@@ -168,7 +168,7 @@ def get_rag_response(query):
   result = qa_chain({"query": query})
   print("Result ",result)
   print("@@@@@@ EXIT FROM get_rag_response @@@@@")
-  return result["result"]
+  return result["result"][163:]
 ####################################
 def evaluate_rag(qa, dataset):
     print("$$$$$ ENTER INTO evaluate_rag $$$$$")
@@ -209,7 +209,7 @@ def launch_ui():
     iface = gradio.Interface(fn = get_rag_response,
                             inputs = [in_question],
                             outputs = [out_response],
-                            title = "RAG Response",
+                            title = "AI Tutor",
                             description = "Write the query and get the response from the RAG system",
                             allow_flagging = 'never')
 
