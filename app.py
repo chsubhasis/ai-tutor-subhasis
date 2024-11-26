@@ -14,6 +14,8 @@ from langchain.chains import RetrievalQA
 import numpy as np
 import gradio
 import sqlite3
+import PyPDF2
+from langchain.prompts import PromptTemplate
 
 hfapi_key = getpass("Enter you HuggingFace access token:")
 os.environ["HF_TOKEN"] = hfapi_key
@@ -22,44 +24,34 @@ os.environ["HUGGINGFACEHUB_API_TOKEN"] = hfapi_key
 set_llm_cache(InMemoryCache())
 
 persist_directory = 'docs/chroma/'
+pdf_path = 'AIML.pdf'
 
-####################################
-def load_file_as_JSON():
-    print("$$$$$ ENTER INTO load_file_as_JSON $$$$$")
-    rows = []
-    with open("mini-llama-articles.csv", mode="r", encoding="utf-8") as file:
-        csv_reader = csv.reader(file)
-        for idx, row in enumerate(csv_reader):
-            if idx == 0:
-                continue
-                # Skip header row
-            rows.append(row)
-
-    print("@@@@@@ EXIT FROM load_file_as_JSON @@@@@")
-    return rows
 ####################################
 def get_documents():
     print("$$$$$ ENTER INTO get_documents $$$$$")
-    documents = [
-        Document(
-            page_content=row[1], metadata={"title": row[0], "url": row[2], "source_name": row[3]}
-        )
-        for row in load_file_as_JSON()
-    ]
+    
+    with open(pdf_path, 'rb') as file:
+        # Create a PDF reader object
+        pdf_reader = PyPDF2.PdfReader(file)
+        
+        # Extract text from all pages
+        full_text = ""
+        for page in pdf_reader.pages:
+            full_text += page.extract_text() + "\n"
+
     print("@@@@@@ EXIT FROM get_documents @@@@@")
-    return documents
+    return full_text
 ####################################
-def getDocSplitter():
+def getTexts():
     print("$$$$$ ENTER INTO getDocSplitter $$$$$")
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size = 512,
         chunk_overlap = 128
     )
-    splits = text_splitter.split_documents(get_documents())
-    print("Split length ", len(splits))
-    print("Page content ", splits[0].page_content)
+    texts = text_splitter.split_text(get_documents())
+    #print("Page content ", texts)
     print("@@@@@@ EXIT FROM getDocSplitter @@@@@")
-    return splits
+    return texts
 ####################################
 def getEmbeddings():
     print("$$$$$ ENTER INTO getEmbeddings $$$$$")
@@ -78,7 +70,6 @@ def getEmbeddings():
         encode_kwargs=encode_kwargs # Pass the encoding options
     )
     
-    print("Embedding ", embedding)
     print("@@@@@@ EXIT FROM getEmbeddings @@@@@")
     return embedding
 ####################################
@@ -86,11 +77,12 @@ def getLLM():
     print("$$$$$ ENTER INTO getLLM $$$$$")
     llm = HuggingFaceEndpoint(
         repo_id="HuggingFaceH4/zephyr-7b-beta",
-        task="summarization",
-        max_new_tokens= 100,
+        task="text-generation",
+        max_new_tokens= 512,
         do_sample= True,
         temperature = 0.7,
-        repetition_penalty= 1.2
+        repetition_penalty= 1.2,
+        top_k = 10
     )
     print("@@@@@@ EXIT FROM getLLM @@@@@")
     return llm
@@ -111,9 +103,9 @@ def getRetiriver():
             embedding_function=getEmbeddings(),
             collection_name="ai_tutor")
     else:
-        vectordb = Chroma.from_documents(
+        vectordb = Chroma.from_texts(
             collection_name="ai_tutor",
-            documents=getDocSplitter(), # splits we created earlier
+            texts=getTexts(),
             embedding=getEmbeddings(),
             persist_directory=persist_directory, # save the directory
         )
@@ -133,7 +125,7 @@ def get_rag_response(query):
     llm=getLLM(),
     chain_type="stuff",
     retriever=getRetiriver(),
-    #return_source_documents=True
+    return_source_documents=True
   )
   
   #RAG Evaluation
@@ -146,7 +138,9 @@ def get_rag_response(query):
   hit_rate, mrr = evaluate_rag(qa_chain, dataset)
   print(f"Hit Rate: {hit_rate:.2f}, Mean Reciprocal Rank (MRR): {mrr:.2f}")
   
+  # Retrieve context documents
   result = qa_chain({"query": query})
+
   print("@@@@@@ EXIT FROM get_rag_response @@@@@")
   return result["result"]
 ####################################
