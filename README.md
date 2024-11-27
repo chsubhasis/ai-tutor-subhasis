@@ -6,13 +6,10 @@ This repository contains the code of the final "Part 4; Building Your Own advanc
 - AI_Tutor_FT.ipynb is only to fine tune the model and save in Hugging Face space. This will not be required to exeute to launch the app. 
 - AI_Tutor_RAG.ipynb is for RAG implementation. This is modularized and moved to app.py.
 - This project used below:
-    - finetuned LLM in the app : The model "chsubhasis/ai-tutor-towardsai" was fine tuned and saved in HF space. The same fine tuned model along side the tokenizer are used wihtin getLLM()
-    - Data collection and curation process leverages structured JSON
-    - metadata filtering
-    - RAG evaluation
-    - Prompt cahcing
-    - For RAG evaluation, Hit Rate: 0.50, Mean Reciprocal Rank (MRR): 0.50. Used simple eval set.
-    - During execution, app will ask to enter HuggingFace access token. So, be ready with that.
+    - Data collection and curation process leverages PDFs. (AIML.pdf)
+    - Prompt caching done using InMemoryCache and set_llm_cache from langchain_core.caches and langchain_core.globals respectively. Search using the same prompt and see the performance improvement. set_llm_cache(InMemoryCache()) does the work. Refer: https://python.langchain.com/docs/how_to/llm_caching/
+    - Metadata filtering done based on dynamic data. Retriever is updated accordingly.
+    - 
 
 ## Setup
 

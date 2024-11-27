@@ -1,27 +1,22 @@
 import os
 from getpass import getpass
-import csv
-from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-#from langchain.schema import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 import torch
 from langchain_huggingface import HuggingFaceEndpoint
-from langchain_community.cache import InMemoryCache
-from langchain.globals import set_llm_cache
+from langchain_core.caches import InMemoryCache
+from langchain_core.globals import set_llm_cache
 from langchain_chroma import Chroma
 from langchain.chains import RetrievalQA
-import numpy as np
 import gradio
-import sqlite3
 import PyPDF2
-from langchain.prompts import PromptTemplate
+import json
 
 hfapi_key = getpass("Enter you HuggingFace access token:")
 os.environ["HF_TOKEN"] = hfapi_key
 os.environ["HUGGINGFACEHUB_API_TOKEN"] = hfapi_key
 
-set_llm_cache(InMemoryCache())
+set_llm_cache(InMemoryCache())  # Set cache globally
 
 persist_directory = 'docs/chroma/'
 pdf_path = 'AIML.pdf'
@@ -42,7 +37,7 @@ def get_documents():
     print("@@@@@@ EXIT FROM get_documents @@@@@")
     return full_text
 ####################################
-def getTexts():
+def getTextSplits():
     print("$$$$$ ENTER INTO getDocSplitter $$$$$")
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size = 512,
@@ -88,12 +83,11 @@ def getLLM():
     return llm
 ####################################
 def is_chroma_db_present(directory: str):
-    """
-    Check if the directory exists and contains any files.
-    """
+
+    #Check if the directory exists and contains any files.
     return os.path.exists(directory) and len(os.listdir(directory)) > 0
 ####################################
-def getRetiriver():
+def getRetiriver(metadata_filter:None):
     print("$$$$$ ENTER INTO getRetiriver $$$$$")
     if is_chroma_db_present(persist_directory):
         print(f"Chroma vector DB found in '{persist_directory}' and will be loaded.")
@@ -105,38 +99,30 @@ def getRetiriver():
     else:
         vectordb = Chroma.from_texts(
             collection_name="ai_tutor",
-            texts=getTexts(),
+            texts=getTextSplits(),
             embedding=getEmbeddings(),
             persist_directory=persist_directory, # save the directory
         )
+    print("metadata_filter", metadata_filter)
+    if(metadata_filter):
+        metadata_filter_dict = {
+        "result": metadata_filter  # ChromaDB will perform a substring search
+        }
+        print("@@@@@@ EXIT FROM getRetiriver with metadata_filter @@@@@")
+        return vectordb.as_retriever(search_type="mmr", search_kwargs={"k": 3, "fetch_k":5, "filter": metadata_filter_dict})
     
-    metadata_filter = {
-        "result": "llama"  # ChromaDB will perform a substring search
-    }
-    
-    #retriever = vectordb.as_retriever(search_type="mmr", search_kwargs={"k": 3, "fetch_k":5, "filter": metadata_filter})
-    retriever = vectordb.as_retriever(search_type="mmr", search_kwargs={"k": 3, "fetch_k":5})
-    print("@@@@@@ EXIT FROM getRetiriver @@@@@")
-    return retriever
+    print("@@@@@@ EXIT FROM getRetiriver without metadata_filter @@@@@")
+    return vectordb.as_retriever(search_type="mmr", search_kwargs={"k": 3, "fetch_k":5})
 ####################################
-def get_rag_response(query):
+def get_rag_response(query, metadata_filter=None):
   print("$$$$$ ENTER INTO get_rag_response $$$$$")  
+
   qa_chain = RetrievalQA.from_chain_type(
     llm=getLLM(),
     chain_type="stuff",
-    retriever=getRetiriver(),
+    retriever=getRetiriver(metadata_filter),
     return_source_documents=True
   )
-  
-  #RAG Evaluation
-  # Sample dataset of questions and expected answers
-  dataset = [
-    {"question": "Who is the CEO of Meta?", "expected_answer": "Mark Zuckerberg"},
-    {"question": "Who is the CEO of Apple?", "expected_answer": "Tiiiiiim Coooooook"},
-  ]
-  
-  hit_rate, mrr = evaluate_rag(qa_chain, dataset)
-  print(f"Hit Rate: {hit_rate:.2f}, Mean Reciprocal Rank (MRR): {mrr:.2f}")
   
   # Retrieve context documents
   result = qa_chain({"query": query})
@@ -144,48 +130,25 @@ def get_rag_response(query):
   print("@@@@@@ EXIT FROM get_rag_response @@@@@")
   return result["result"]
 ####################################
-def evaluate_rag(qa, dataset):
-    print("$$$$$ ENTER INTO evaluate_rag $$$$$")
-    hits = 0
-    reciprocal_ranks = []
-
-    for entry in dataset:
-        question = entry["question"]
-        expected_answer = entry["expected_answer"]
-        
-        # Get the answer from the RAG system
-        response = qa({"query": question}) 
-        answer = response["result"] 
-        
-        # Check if the answer matches the expected answer
-        if expected_answer.lower() in answer.lower():
-            hits += 1
-            reciprocal_ranks.append(1)  # Hit at rank 1
-        else:
-            reciprocal_ranks.append(0)
-
-    # Calculate Hit Rate and MRR
-    hit_rate = hits / len(dataset)
-    mrr = np.mean(reciprocal_ranks)
-
-    print("@@@@@@ EXIT FROM evaluate_rag @@@@@")
-    return hit_rate, mrr
-####################################
 def launch_ui():
-    print("$$$$$ ENTER INTO launch_ui $$$$$")
     # Input from user
-    in_question = gradio.Textbox(lines=10, placeholder=None, value="query", label='Enter your query')
-
+    in_question = gradio.Textbox(lines=10, placeholder=None, value="query", label='Ask a question to you AI Tutor')
+    
+    # Optional metadata filter input
+    in_metadata_filter = gradio.Textbox(lines=2, placeholder=None, value="metadata", label='Optionally add a filter word')
+    
     # Output prediction
-    out_response = gradio.Textbox(type="text", label='RAG Response')
-    print("out_response ", out_response)
+    out_response = gradio.Textbox(type="text", label='Tutor''s Response')
+
     # Gradio interface to generate UI
-    iface = gradio.Interface(fn = get_rag_response,
-                            inputs = [in_question],
-                            outputs = [out_response],
-                            title = "RAG Response",
-                            description = "Write the query and get the response from the RAG system",
-                            allow_flagging = 'never')
+    iface = gradio.Interface(
+        fn = get_rag_response,
+        inputs=[in_question, in_metadata_filter],
+        outputs=[out_response],
+        title="Your AI Tutor",
+        description="Ask a question, optionally add metadata filters.",
+        allow_flagging='never'
+    )
 
     iface.launch(share = True)
 
