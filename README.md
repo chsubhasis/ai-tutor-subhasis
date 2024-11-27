@@ -31,5 +31,3 @@ pip install -r requirements.txt
 ```bash
 python app.py
 ```
-
-![alt text](rag_response.PNG)
