@@ -12,6 +12,8 @@ import gradio
 import PyPDF2
 import json
 import re
+from transformers import pipeline
+from diffusers import StableDiffusionPipeline
 
 hfapi_key = getpass("Enter you HuggingFace access token:")
 os.environ["HF_TOKEN"] = hfapi_key
@@ -199,7 +201,8 @@ def classify_query(query):
     return 'general'
 ####################################
 def get_rag_response(query, metadata_filter=None):
-  print("$$$$$ ENTER INTO get_rag_response $$$$$")  
+  print("$$$$$ ENTER INTO get_rag_response $$$$$")
+   
   qa_chain = RetrievalQA.from_chain_type(
     llm=getLLM(),
     chain_type="stuff",
@@ -209,25 +212,32 @@ def get_rag_response(query, metadata_filter=None):
   
   # Retrieve context documents
   result = qa_chain({"query": query})
+  
+  # Load the Stable Diffusion pipeline from Hugging Face
+  model_id = "CompVis/stable-diffusion-v-1-4-original"  # Use Stable Diffusion 2.1 model
+  pipe = StableDiffusionPipeline.from_pretrained(model_id)
+  pipe.to("cuda" if torch.cuda.is_available() else "cpu")  # Use GPU if available
 
   print("@@@@@@ EXIT FROM get_rag_response @@@@@")
-  return result["result"]
+  return result["result"], pipe(query).images[0]
 ####################################
 def launch_ui():
     # Input from user
     in_question = gradio.Textbox(lines=10, placeholder=None, value="query", label='Ask a question to you AI Tutor')
     
     # Optional metadata filter input
-    in_metadata_filter = gradio.Textbox(lines=2, placeholder=None, value="metadata", label='Optionally add a filter word')
+    in_metadata_filter = gradio.Textbox(lines=2, placeholder=None, label='Optionally add a filter word')
     
     # Output prediction
-    out_response = gradio.Textbox(type="text", label='Tutor''s Response')
+    out_response = gradio.Textbox(type="text", label='Response')
+
+    out_image = gradio.Image()
 
     # Gradio interface to generate UI
     iface = gradio.Interface(
         fn = get_rag_response,
         inputs=[in_question, in_metadata_filter],
-        outputs=[out_response],
+        outputs=[out_response, out_image],
         title="Your AI Tutor",
         description="Ask a question, optionally add metadata filters.",
         allow_flagging='never'
