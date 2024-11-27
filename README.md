@@ -9,7 +9,7 @@ This repository contains the code of the final "Part 4; Building Your Own advanc
     - Data collection and curation process leverages PDFs. (AIML.pdf)
     - Prompt caching done using InMemoryCache and set_llm_cache from langchain_core.caches and langchain_core.globals respectively. Search using the same prompt and see the performance improvement. set_llm_cache(InMemoryCache()) does the work. Refer: https://python.langchain.com/docs/how_to/llm_caching/
     - Metadata filtering done based on dynamic data. Retriever is updated accordingly.
-    - 
+    - Query routing: Based on the query type, search_type is altered in run time ("mmr" or "similarity"). Try with prompts like "Demonstrate Artificial Intelligence and Machine Learning." and "What are Artificial Intelligence and Machine Learning?"
 
 ## Setup
 
