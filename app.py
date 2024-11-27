@@ -12,8 +12,7 @@ import gradio
 import PyPDF2
 import json
 import re
-from transformers import pipeline
-
+from langchain_core.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 
 hfapi_key = getpass("Enter you HuggingFace access token:")
 os.environ["HF_TOKEN"] = hfapi_key
@@ -70,6 +69,23 @@ def getEmbeddings():
     
     print("@@@@@@ EXIT FROM getEmbeddings @@@@@")
     return embedding
+####################################
+def getLLM():
+    print("$$$$$ ENTER INTO getLLM $$$$$")
+    callbacks = [StreamingStdOutCallbackHandler()]
+    llm = HuggingFaceEndpoint(
+        repo_id="HuggingFaceH4/zephyr-7b-beta",
+        task="text-generation",
+        max_new_tokens= 512,
+        do_sample= True,
+        temperature = 0.7,
+        repetition_penalty= 1.2,
+        callbacks=callbacks,
+        top_k = 10,
+        stream=True  # Enable streaming responses
+    )
+    print("@@@@@@ EXIT FROM getLLM @@@@@")
+    return llm
 ####################################
 def is_chroma_db_present(directory: str):
 
@@ -130,6 +146,7 @@ def getRetiriver(query, metadata_filter:None):
     print("@@@@@@ EXIT FROM getRetiriver without metadata_filter @@@@@")
     if search_type_default == "similarity":
         return vectordb.as_retriever(search_type=search_type_default, search_kwargs={"k": k_default})
+    
     return vectordb.as_retriever(search_type=search_type_default, search_kwargs={"k": k_default, "fetch_k":fetch_k_default})
 ####################################
 def classify_query(query):
@@ -186,83 +203,41 @@ def classify_query(query):
     
     return 'general'
 ####################################
-def getStream(query, metadata_filter=None):
-    """
-    Stream the RAG response using a generator function.
-    
-    Args:
-        query (str): User's input query
-        metadata_filter (str, optional): Metadata filter for retrieval
-    
-    Yields:
-        str: Partial response chunks for streaming
-    """
-    # Retrieve context
-    retriever = getRetiriver(query, metadata_filter)
-    documents = retriever.get_relevant_documents(query)
-    
-    # Prepare context for generation
-    context = " ".join([doc.page_content for doc in documents])
-    
-    # Use HuggingFace text generation pipeline with streaming
-    generator = pipeline(
-        "text-generation", 
-        model="HuggingFaceH4/zephyr-7b-beta", 
-        torch_dtype=torch.float16,
-        device_map="auto"
-    )
-    
-    # Construct prompt with retrieval context
-    prompt = f"""
-    Context: {context}
-    
-    Query: {query}
-    
-    Based on the context, provide a detailed and accurate response to the query:
-    """
-    
-    # Generate response with streaming
-    response_chunks = generator(
-        prompt, 
-        max_new_tokens=512, 
-        do_sample=True, 
-        temperature=0.7,
-        num_return_sequences=1,
-        stream=True
-    )
-    
-    full_response = ""
-    for chunk in response_chunks:
-        # Extract generated text
-        generated_text = chunk[0]['generated_text']
-        
-        # Remove prompt from generated text
-        response = generated_text.replace(prompt, '').strip()
-        
-        # Yield progressive chunks
-        if response and response != full_response:
-            yield response
-            full_response = response
+def get_rag_response(query, metadata_filter=None):
+  print("$$$$$ ENTER INTO get_rag_response $$$$$")
+   
+  qa_chain = RetrievalQA.from_chain_type(
+    llm=getLLM(),
+    chain_type="stuff",
+    retriever=getRetiriver(query, metadata_filter),
+    return_source_documents=True
+  )
+  
+  # Retrieve context documents
+  result = qa_chain({"query": query})
+
+  print("@@@@@@ EXIT FROM get_rag_response @@@@@")
+  print("Response", result["result"])
+  return result["result"]
+  #return response
 ####################################
 def launch_ui():
     # Input from user
-    in_question = gradio.Textbox(lines=10, placeholder=None, value="query", label='Ask a question to you AI Tutor')
+    in_question = gradio.Textbox(lines=10, placeholder=None, value="query", label='Ask a question to your AI Tutor')
     
     # Optional metadata filter input
     in_metadata_filter = gradio.Textbox(lines=2, placeholder=None, label='Optionally add a filter word')
     
-    # Streaming output
+    # Output prediction
     out_response = gradio.Textbox(label='Response', interactive=False)
-
-    out_image = gradio.Image()
 
     # Gradio interface to generate UI
     iface = gradio.Interface(
-        fn = getStream,
+        fn = get_rag_response,
         inputs=[in_question, in_metadata_filter],
-        outputs=[out_response, out_image],
+        outputs=[out_response],
         title="Your AI Tutor",
-        description="Ask a question with optional metadata filters, get streaming responses.",
+        description="Ask a question, optionally add metadata filters.",
         allow_flagging='never'
     )
 
