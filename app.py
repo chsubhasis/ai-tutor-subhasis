@@ -12,7 +12,12 @@ import gradio
 import PyPDF2
 import json
 import re
-from langchain_core.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+import time
+import threading
+from langchain_core.runnables import RunnableConfig, RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import PromptTemplate
+from langchain_core.runnables import RunnableLambda
 
 hfapi_key = getpass("Enter you HuggingFace access token:")
 os.environ["HF_TOKEN"] = hfapi_key
@@ -72,7 +77,12 @@ def getEmbeddings():
 ####################################
 def getLLM():
     print("$$$$$ ENTER INTO getLLM $$$$$")
-    callbacks = [StreamingStdOutCallbackHandler()]
+
+    model_kwargs = {
+        'device': "cuda" if torch.cuda.is_available() else "cpu",
+        'stream': True  # Ensure streaming is enabled
+    }
+
     llm = HuggingFaceEndpoint(
         repo_id="HuggingFaceH4/zephyr-7b-beta",
         task="text-generation",
@@ -80,9 +90,8 @@ def getLLM():
         do_sample= True,
         temperature = 0.7,
         repetition_penalty= 1.2,
-        callbacks=callbacks,
-        top_k = 10,
-        stream=True  # Enable streaming responses
+        top_k = 10
+        #model_kwargs=model_kwargs  # Pass the model configuration options
     )
     print("@@@@@@ EXIT FROM getLLM @@@@@")
     return llm
@@ -204,45 +213,75 @@ def classify_query(query):
     return 'general'
 ####################################
 def get_rag_response(query, metadata_filter=None):
-  print("$$$$$ ENTER INTO get_rag_response $$$$$")
-   
-  qa_chain = RetrievalQA.from_chain_type(
-    llm=getLLM(),
-    chain_type="stuff",
-    retriever=getRetiriver(query, metadata_filter),
-    return_source_documents=True
-  )
+    print("$$$$$ ENTER INTO get_rag_response $$$$$")
   
-  # Retrieve context documents
-  result = qa_chain({"query": query})
+    # Create the retriever
+    retriever = getRetiriver(query, metadata_filter)
 
-  print("@@@@@@ EXIT FROM get_rag_response @@@@@")
-  print("Response", result["result"])
-  return result["result"]
-  #return response
-####################################
-def launch_ui():
-    # Input from user
-    in_question = gradio.Textbox(lines=10, placeholder=None, value="query", label='Ask a question to your AI Tutor')
-    
-    # Optional metadata filter input
-    in_metadata_filter = gradio.Textbox(lines=2, placeholder=None, label='Optionally add a filter word')
-    
-    # Output prediction
-    out_response = gradio.Textbox(label='Response', interactive=False)
+    # Get the LLM
+    llm = getLLM()
 
-    # Gradio interface to generate UI
-    iface = gradio.Interface(
-        fn = get_rag_response,
-        inputs=[in_question, in_metadata_filter],
-        outputs=[out_response],
-        title="Your AI Tutor",
-        description="Ask a question, optionally add metadata filters.",
-        allow_flagging='never'
+    # Create a prompt template
+    template = """Use the following pieces of context to answer the question at the end. 
+    If you don't know the answer, just say that you don't know, don't try to make up an answer.
+
+    Context: {context}
+
+    Question: {question}
+
+    Helpful Answer:"""
+    
+    prompt = PromptTemplate.from_template(template)
+
+    # Function to prepare input for the chain
+    def prepare_inputs(inputs):
+        retrieved_docs = retriever.invoke(inputs["question"])
+        context = format_docs(retrieved_docs)
+        return {
+            "context": context,
+            "question": inputs["question"]
+        }
+
+    # Construct the RAG chain with streaming
+    rag_chain = (
+        RunnablePassthrough()
+        | RunnableLambda(prepare_inputs)
+        | prompt
+        | llm
+        | StrOutputParser()
     )
 
-    iface.launch(share = True)
+    # Stream the response
+    full_response = ""
+    for chunk in rag_chain.stream({"question": query}):
+        full_response += chunk
+        # Add a small delay to create a streaming effect
+        time.sleep(0.05)  # 50 milliseconds between chunk updates
+        yield full_response
 
 ####################################
-if __name__ == "__main__":
-    launch_ui()
+# Utility function to format documents
+def format_docs(docs):
+    return "\n\n".join(doc.page_content for doc in docs)
+####################################
+# Input from user
+in_question = gradio.Textbox(lines=10, placeholder=None, value="What are Artificial Intelligence and Machine Learning?", label='Ask a question to your AI Tutor')
+
+# Optional metadata filter input
+in_metadata_filter = gradio.Textbox(lines=2, placeholder=None, label='Optionally add a filter word')
+
+# Output prediction
+out_response = gradio.Textbox(label='Response', interactive=False, show_copy_button=True)
+
+# Gradio interface to generate UI
+iface = gradio.Interface(
+    fn = get_rag_response,
+    inputs=[in_question, in_metadata_filter],
+    outputs=out_response,
+    title="Your AI Tutor",
+    description="Ask a question, optionally add metadata filters.",
+    allow_flagging='never',
+    stream_every=0.5
+    )
+
+iface.launch(share = True)
